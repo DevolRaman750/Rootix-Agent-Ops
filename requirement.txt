@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+pydantic-settings
+protobuf
+opentelemetry-proto
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-exporter-otlp-proto-http
+httpx
+boto3
+celery
+redis
