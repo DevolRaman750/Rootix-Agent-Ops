@@ -36,9 +36,10 @@ class S3Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="S3_")
 
-    endpoint_url: str | None = None
-    access_key_id: str | None = None
-    secret_access_key: str | None = None
+    # Local docker-compose MinIO defaults; production should override via env vars.
+    endpoint_url: str | None = "http://localhost:9090"
+    access_key_id: str | None = "minio"
+    secret_access_key: str | None = "minio-password"
     bucket_name: str = "traceroot"
     region: str = "us-east-1"
 
@@ -66,7 +67,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://postgres:postgres@localhost:5432/postgres"
 
     # CORS
-    cors_origins: list[str] = ["http://localhost:3000"]
+    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:3001"]
 
     # Internal communication (Python <-> Next.js)
     rootix_ui_url: str = "http://localhost:3000"

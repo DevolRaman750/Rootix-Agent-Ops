@@ -164,6 +164,22 @@ def attributes_to_dict(attributes: list[dict]) -> dict[str, Any]:
     return result
 
 
+def events_to_list(otel_span: dict) -> list[dict[str, Any]]:
+    """Convert OTEL span events to serializable log-like objects."""
+    events: list[dict[str, Any]] = []
+    for event in otel_span.get("events", []):
+        event_attrs = attributes_to_dict(event.get("attributes", []))
+        event_time = nanos_to_datetime(event.get("timeUnixNano"))
+        events.append(
+            {
+                "name": event.get("name", "event"),
+                "time": event_time.isoformat() if event_time else None,
+                "attributes": event_attrs,
+            }
+        )
+    return events
+
+
 def get_span_kind(attrs: dict[str, Any], otel_kind: int | str | None) -> str:
     """Determine the span kind from span attributes.
 
@@ -394,11 +410,30 @@ def transform_otel_to_clickhouse(
                 # Extract metadata
                 # Priority: explicit traceroot.span.metadata > remaining attributes
                 explicit_metadata = span_attrs.get("traceroot.span.metadata")
+                span_events = events_to_list(otel_span)
                 if explicit_metadata is not None:
                     if isinstance(explicit_metadata, str):
-                        span_record["metadata"] = explicit_metadata
+                        try:
+                            metadata_obj: Any = json.loads(explicit_metadata)
+                        except Exception:
+                            metadata_obj = {"value": explicit_metadata}
                     else:
-                        span_record["metadata"] = json.dumps(explicit_metadata)
+                        metadata_obj = explicit_metadata
+
+                    if span_events:
+                        if isinstance(metadata_obj, dict):
+                            metadata_obj["logs"] = span_events
+                        else:
+                            metadata_obj = {
+                                "metadata": metadata_obj,
+                                "logs": span_events,
+                            }
+
+                    span_record["metadata"] = (
+                        metadata_obj
+                        if isinstance(metadata_obj, str)
+                        else json.dumps(metadata_obj)
+                    )
                 else:
                     # Collect non-internal attributes as metadata
                     extra_attrs = {
@@ -406,6 +441,8 @@ def transform_otel_to_clickhouse(
                         for k, v in span_attrs.items()
                         if not _is_known_attribute(k) and v is not None
                     }
+                    if span_events:
+                        extra_attrs["logs"] = span_events
                     if extra_attrs:
                         span_record["metadata"] = json.dumps(extra_attrs)
 
